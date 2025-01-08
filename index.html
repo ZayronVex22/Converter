@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cyber Convert - PDF to Image</title>
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+  <style>
+    /* Cyberpunk Style */
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0a0f25;
+      color: #00ffcc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      text-align: center;
+      height: 90%;
+      width: 90%;
+      background: #111827;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0, 255, 204, 0.5);
+    }
+
+    h1 {
+      color: #00ffcc;
+      margin-bottom: 20px;
+      text-shadow: 0 0 10px rgba(0, 255, 204, 0.8);
+    }
+
+    .button {
+      background-color: transparent;
+      border: 2px solid #00ffcc;
+      border-radius: 8px;
+      padding: 10px 20px;
+      color: #00ffcc;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 0;
+      transition: all 0.3s ease;
+    }
+
+    .button:hover {
+      background-color: #00ffcc;
+      color: #0a0f25;
+      box-shadow: 0 0 10px #00ffcc, 0 0 20px #00ffcc;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .loading-container {
+      display: none;
+      margin-top: 20px;
+    }
+
+    .loading-bar {
+      width: 100%;
+      max-width: 300px;
+      height: 15px;
+      background: #333;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .loading-bar div {
+      height: 100%;
+      width: 0%;
+      background: #00ffcc;
+      transition: width 0.3s ease;
+    }
+
+    .preview-container {
+      display: none;
+      margin-top: 20px;
+      overflow-y: auto;
+      max-height: 700px;
+      border: 1px solid #00ffcc;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
+      background: rgba(0, 0, 0, 0.8);
+    }
+
+    .preview-container img {
+      width: 100%;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      border: 1px solid #00ffcc;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Cyber Convert</h1>
+    <label for="pdf-file" class="button">Upload PDF</label>
+    <input type="file" id="pdf-file" accept="application/pdf">
+    <button id="convert-btn" class="button" style="display: none;">Convert</button>
+    <button id="preview-btn" class="button" style="display: none;">Show Preview</button>
+    <button id="download-btn" class="button" style="display: none;">Download ZIP</button>
+
+    <div class="loading-container">
+      <div class="loading-bar">
+        <div></div>
+      </div>
+      <p>Loading... <span id="loading-percent">0%</span></p>
+    </div>
+
+    <div id="preview-container" class="preview-container"></div>
+  </div>
+
+  <script>
+    const pdfFileInput = document.getElementById("pdf-file");
+    const convertBtn = document.getElementById("convert-btn");
+    const previewBtn = document.getElementById("preview-btn");
+    const downloadBtn = document.getElementById("download-btn");
+    const loadingContainer = document.querySelector(".loading-container");
+    const loadingBar = document.querySelector(".loading-bar div");
+    const loadingPercent = document.getElementById("loading-percent");
+    const previewContainer = document.getElementById("preview-container");
+
+    let images = [];
+    let zip = new JSZip();
+
+    // Handle file upload
+    pdfFileInput.addEventListener("change", () => {
+      const file = pdfFileInput.files[0];
+      if (file) {
+        convertBtn.style.display = "inline-block";
+        images = [];
+        zip = new JSZip();
+      }
+    });
+
+    // Convert PDF to Images
+    convertBtn.addEventListener("click", async () => {
+      const file = pdfFileInput.files[0];
+      if (!file) return;
+
+      loadingContainer.style.display = "block";
+      loadingBar.style.width = "0%";
+      images = [];
+      zip = new JSZip();
+
+      const reader = new FileReader();
+      reader.onload = async function () {
+        const typedArray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument(typedArray).promise;
+        const totalPages = pdf.numPages;
+
+        for (let i = 1; i <= totalPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 1.5 });
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          images.push(canvas.toDataURL("image/png"));
+
+          const progress = Math.floor((i / totalPages) * 100);
+          loadingBar.style.width = `${progress}%`;
+          loadingPercent.textContent = `${progress}%`;
+        }
+
+        loadingContainer.style.display = "none";
+        previewBtn.style.display = "inline-block";
+        downloadBtn.style.display = "inline-block";
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+
+    // Show Preview
+    previewBtn.addEventListener("click", () => {
+      previewContainer.innerHTML = "";
+      images.forEach((imgSrc) => {
+        const img = document.createElement("img");
+        img.src = imgSrc;
+        previewContainer.appendChild(img);
+      });
+      previewContainer.style.display = "block";
+    });
+
+    // Download ZIP
+    downloadBtn.addEventListener("click", () => {
+      images.forEach((img, i) => {
+        zip.file(`page-${i + 1}.png`, img.split(",")[1], { base64: true });
+      });
+      zip.generateAsync({ type: "blob" }).then((content) => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(content);
+        a.download = "converted-images.zip";
+        a.click();
+      });
+    });
+  </script>
+</body>
+</html>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('./service_worker.js')
+        .then((registration) => {
+          console.log('Service Worker registered with scope:', registration.scope);
+        })
+        .catch((error) => {
+          console.error('Service Worker registration failed:', error);
+        });
+    });
+  }
+</script>
